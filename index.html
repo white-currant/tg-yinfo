@@ -579,20 +579,44 @@
     }
   } catch(e){/* noop */}
 
-  // Подсветка активного раздела в списке якорей (с фолбэком)
+  // Подсветка активного раздела в списке якорей (с дефолтом на #rules)
   (function(){
     const links = Array.from(document.querySelectorAll('.navlist a'));
-    const targets = links.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
-    if (!links.length || !targets.length) return;
+    if (!links.length) return;
 
-    if ('IntersectionObserver' in window) {
+    const byId = id => links.find(a => a.getAttribute('href') === `#${id}`);
+    const setActive = id => links.forEach(a => a.classList.toggle('active', a.getAttribute('href') === `#${id}`));
+
+    // по умолчанию подсвечиваем «Правила»
+    const DEFAULT_ID = 'rules';
+    if (byId(DEFAULT_ID)) setActive(DEFAULT_ID);
+
+    // При клике — сразу подсветить нужный пункт (без ожидания observer)
+    links.forEach(a => {
+      a.addEventListener('click', () => setActive(a.getAttribute('href').slice(1)));
+    });
+
+    // Автоподсветка включается только после небольшой прокрутки,
+    // чтобы на мобильных по умолчанию не прыгало на «О канале»
+    const enableAutoAt = 80; // px
+    let autoEnabled = false;
+
+    function maybeEnableAuto(){
+      const y = window.pageYOffset || document.documentElement.scrollTop || 0;
+      if (!autoEnabled && y > enableAutoAt) autoEnabled = true;
+    }
+    window.addEventListener('scroll', maybeEnableAuto, {passive:true});
+    document.addEventListener('scroll', maybeEnableAuto, {passive:true});
+
+    const targets = links
+      .map(a => document.querySelector(a.getAttribute('href')))
+      .filter(Boolean);
+
+    if ('IntersectionObserver' in window && targets.length){
       const io = new IntersectionObserver((entries)=>{
-        entries.forEach(e=>{
-          if(e.isIntersecting){
-            links.forEach(l => l.classList.toggle('active', l.getAttribute('href').slice(1) === e.target.id));
-          }
-        });
-      }, {rootMargin:"-40% 0px -50% 0px", threshold:0});
+        if (!autoEnabled) return;
+        entries.forEach(e=>{ if(e.isIntersecting) setActive(e.target.id); });
+      }, {rootMargin:"-35% 0px -45% 0px", threshold:0});
       targets.forEach(s => io.observe(s));
     } else {
       document.documentElement.classList.add('no-io');
